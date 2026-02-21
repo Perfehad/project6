@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Сабақ кестесі</title>
+<style>
+  body{margin:0;font-family:system-ui,Arial;background:#fff;color:#111}
+  .wrap{max-width:860px;margin:auto;padding:18px}
+  h1{margin:0 0 12px;text-align:center;font-size:22px}
+  .topbar{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+  .btn{
+    padding:10px 14px;border-radius:12px;border:1px solid #ddd;
+    background:#f7f7f7;cursor:pointer;font-weight:700
+  }
+  .btn.active{border-color:#7c5cff;background:#efeaff}
+  .card{border:1px solid #e6e6e6;border-radius:14px;padding:14px;background:#fafafa}
+  .title{font-weight:900;margin:0 0 8px}
+  .lesson{padding:10px;border-radius:12px;border:1px solid #eee;background:#fff;display:flex;gap:10px;align-items:flex-start}
+  .lesson + .lesson{margin-top:10px}
+  .time{font-weight:900;min-width:120px}
+  .subject{font-weight:700}
+  .timerBar{
+    position:fixed;left:50%;transform:translateX(-50%);bottom:16px;
+    width:min(860px,92%);border-radius:16px;border:1px solid #e6e6e6;
+    background:#111;color:#fff;padding:12px 14px;box-shadow:0 16px 50px rgba(0,0,0,.18);
+    display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap
+  }
+  .timerBar b{font-size:14px}
+  .timer{font-size:22px;font-weight:900;letter-spacing:1px}
+  .muted{color:#666;font-size:12px;margin-top:10px;line-height:1.4}
+  .small{font-size:12px;color:#ddd}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>Сабақ кестесі</h1>
+
+  <div class="topbar" id="dayButtons"></div>
+
+  <div class="card">
+    <div class="title" id="dayTitle">Күнді таңдаңыз</div>
+    <div id="daySchedule"></div>
+    <div class="muted">
+     <br>
+      <br>
+      
+    </div>
+  </div>
+</div>
+
+<div class="timerBar">
+  <div>
+    <b id="statusText">—</b>
+    <div class="small" id="subText">—</div>
+  </div>
+  <div class="timer" id="timerBox">00:00</div>
+</div>
+
+<script>
+/* ===================== 1) УРОКИ ПО ДНЯМ (БЕЗ ДАТ) ===================== */
+const WEEK_TEMPLATE = [
+  {
+    key:"mon",
+    kz:"Дүйсенбі",
+    ru:"Понедельник",
+    lessons: [
+      ["08:00","08:45","Математика"],
+      ["08:50","09:35","Орыс тілі"],
+      ["09:40","10:25","Қазақ тілі"],
+      ["10:45","11:30","Химия"],
+      ["11:35","12:20","Биология"],
+      ["12:25","13:10","Алғашқы әскери дайындық"],
+      ["13:20","14:05","Дене тәрбиесі"]
+    ]
+  },
+  {
+    key:"tue",
+    kz:"Сейсенбі",
+    ru:"Вторник",
+    lessons: [
+      ["08:00","08:45","Химия"],
+      ["08:50","09:35","Физика"],
+      ["09:40","10:25","Орыс тілі"],
+      ["10:45","11:30","Информатика"],
+      ["11:35","12:20","Қазақ тілі"],
+      ["12:25","13:10","Дене тәрбиесі"],
+      ["13:20","14:05","Математика"]
+    ]
+  },
+  {
+    key:"wed",
+    kz:"Сәрсенбі",
+    ru:"Среда",
+    lessons: [
+      ["08:00","08:45","Қазақстан тарихы"],
+      ["08:50","09:35","Физика"],
+      ["09:40","10:25","География"],
+      ["10:45","11:30","Математика"],
+      ["11:35","12:20","Қазақ тілі"],
+      ["12:25","13:10","Биология"],
+      ["13:20","14:05","Дүниежүзі тарихы"]
+    ]
+  },
+  {
+    key:"thu",
+    kz:"Бейсенбі",
+    ru:"Четверг",
+    lessons: [
+      ["08:00","08:45","Дене тәрбиесі"],
+      ["08:50","09:35","Өндірістегі еңбекті қорғау және қауіпсіздік техникасы"],
+      ["09:40","10:25","Қазақ тілі"],
+      ["10:45","11:30","Информатика"],
+      ["11:35","12:20","Дүниежүзі тарихы"],
+      ["12:25","13:10","Шетел тілі"],
+      ["13:20","14:05","Математика"]
+    ]
+  },
+  {
+    key:"fri",
+    kz:"Жұма",
+    ru:"Пятница",
+    lessons: [
+      ["08:00","08:45","География"],
+      ["08:50","09:35","Графика және дизайн"],
+      ["09:40","10:25","Қазақ тілі"],
+      ["10:45","11:30","Дене тәрбиесі"],
+      ["11:35","12:20","Информатика"],
+      ["12:25","13:10","Жаһандық құзыреттілік"],
+      ["13:20","14:05","Шетел тілі"]
+    ]
+  }
+];
+
+/* ===================== 2) АВТО-ДАТЫ ТЕКУЩЕЙ НЕДЕЛИ ===================== */
+function toISODate(d){
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,"0");
+  const dd = String(d.getDate()).padStart(2,"0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+function toTextDate(d){
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,"0");
+  const dd = String(d.getDate()).padStart(2,"0");
+  return `${dd}.${mm}.${yyyy}`;
+}
+
+// Понедельник текущей недели
+function getMonday(date){
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Вс,1=Пн,...6=Сб
+  const diff = (day === 0 ? -6 : 1 - day);
+  d.setDate(d.getDate() + diff);
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+function buildWeekWithDates(baseDate = new Date()){
+  const monday = getMonday(baseDate);
+  return WEEK_TEMPLATE.map((t, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return {
+      key: t.key,
+      label: t.kz,
+      kz: t.kz,
+      ru: t.ru,
+      dateISO: toISODate(d),
+      dateText: toTextDate(d),
+      title: `${t.kz} — ${toTextDate(d)} (${t.ru})`,
+      lessons: t.lessons
+    };
+  });
+}
+
+let DAYS = buildWeekWithDates(new Date());
+
+/* ===================== 3) UI: КНОПКИ И СПИСОК ===================== */
+const dayButtons = document.getElementById("dayButtons");
+const dayTitle = document.getElementById("dayTitle");
+const daySchedule = document.getElementById("daySchedule");
+
+let selectedKey = null;
+
+function renderDayButtons(){
+  dayButtons.innerHTML = "";
+  DAYS.forEach(d => {
+    const b = document.createElement("button");
+    b.className = "btn";
+    b.textContent = d.label;
+    b.dataset.key = d.key;
+    b.onclick = () => selectDay(d.key);
+    dayButtons.appendChild(b);
+  });
+}
+
+function renderSchedule(day){
+  dayTitle.textContent = day.title;
+  daySchedule.innerHTML = "";
+  day.lessons.forEach((l, idx) => {
+    const el = document.createElement("div");
+    el.className = "lesson";
+    el.innerHTML = `
+      <div class="time">${l[0]}–${l[1]}</div>
+      <div>
+        <div class="subject">${idx+1}. ${l[2]}</div>
+      </div>
+    `;
+    daySchedule.appendChild(el);
+  });
+}
+
+function selectDay(key){
+  selectedKey = key;
+  [...dayButtons.querySelectorAll(".btn")].forEach(btn=>{
+    btn.classList.toggle("active", btn.dataset.key === key);
+  });
+  const day = DAYS.find(d => d.key === key);
+  if(day) renderSchedule(day);
+}
+
+/* ===================== 4) УВЕДОМЛЕНИЯ (когда сайт открыт) ===================== */
+function requestNotify(){
+  if(!("Notification" in window)) return;
+  if(Notification.permission === "default") Notification.requestPermission();
+}
+requestNotify();
+
+function notify(title, body){
+  if(!("Notification" in window)) return;
+  if(Notification.permission !== "granted") return;
+  try { new Notification(title, { body }); } catch {}
+}
+
+/* ===================== 5) ТАЙМЕР ===================== */
+const timerBox = document.getElementById("timerBox");
+const statusText = document.getElementById("statusText");
+const subText = document.getElementById("subText");
+
+const BREAK_AFTER_LESSON = 3;
+const BIG_BREAK_MIN = 20;
+const ALERT_BEFORE_MIN = 5;
+
+function timeToMin(hhmm){
+  const [h,m] = hhmm.split(":").map(Number);
+  return h*60+m;
+}
+function fmt(sec){
+  const m = Math.floor(sec/60);
+  const s = sec%60;
+  return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+}
+
+function buildTimeline(lessons){
+  const tl = [];
+  for(let i=0;i<lessons.length;i++){
+    const [s,e,name] = lessons[i];
+    tl.push({ type:"lesson", idx:i+1, name, start:timeToMin(s), end:timeToMin(e) });
+
+    if(i < lessons.length-1){
+      const nextStart = timeToMin(lessons[i+1][0]);
+      let bStart = timeToMin(e);
+      let bEnd = nextStart;
+
+      if((i+1) === BREAK_AFTER_LESSON){
+        bEnd = bStart + BIG_BREAK_MIN; // большая перемена 20 минут
+      }
+      tl.push({ type:"break", after:(i+1), start:bStart, end:bEnd });
+    }
+  }
+  return tl;
+}
+
+function findBlock(tl, nowMin){
+  for(const b of tl){
+    if(nowMin >= b.start && nowMin < b.end) return b;
+  }
+  return null;
+}
+
+let lastKeyWarn = "";
+let lastKeyEnd = "";
+
+// сегодняшняя дата
+function getTodayISO(){
+  return toISODate(new Date());
+}
+
+function getTodayDay(){
+  const iso = getTodayISO();
+  return DAYS.find(d => d.dateISO === iso) || null;
+}
+
+/* ====== ВАЖНО: ПЕРЕСТРОЕНИЕ ДАТ КАЖДЫЙ ДЕНЬ (и значит каждую неделю тоже) ======
+   Если пользователь оставил вкладку открытой в воскресенье/понедельник,
+   то при смене даты мы пересчитаем неделю автоматически.
+*/
+let lastSeenISO = getTodayISO();
+function refreshWeekIfNeeded(){
+  const iso = getTodayISO();
+  if(iso !== lastSeenISO){
+    lastSeenISO = iso;
+    DAYS = buildWeekWithDates(new Date());
+    renderDayButtons();
+
+    // если был выбран день — перерисуем, иначе выберем сегодня или понедельник
+    const today = getTodayDay();
+    if(selectedKey && DAYS.some(d=>d.key===selectedKey)){
+      selectDay(selectedKey);
+    }else if(today){
+      selectDay(today.key);
+    }else{
+      selectDay("mon");
+    }
+  }
+}
+
+function tick(){
+  refreshWeekIfNeeded();
+
+  const today = getTodayDay();
+  if(!today){
+    statusText.textContent = "Бүгін сабақ жоқ";
+    subText.textContent = "Жоғарыдан күнді таңдаңыз";
+    timerBox.textContent = "00:00";
+    lastKeyWarn = ""; lastKeyEnd = "";
+    return;
+  }
+
+  // авто-выбор сегодняшнего дня, если пользователь ещё не выбирал
+  if(!selectedKey){
+    selectDay(today.key);
+  }
+
+  const tl = buildTimeline(today.lessons);
+
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  const curSec = nowMin*60 + now.getSeconds();
+
+  const cur = findBlock(tl, nowMin);
+  if(!cur){
+    statusText.textContent = "Үзіліс/сабақ алдында";
+    subText.textContent = today.title;
+    timerBox.textContent = "00:00";
+    lastKeyWarn = ""; lastKeyEnd = "";
+    return;
+  }
+
+  const left = Math.max(0, cur.end*60 - curSec);
+  const leftMin = Math.ceil(left/60);
+  timerBox.textContent = fmt(left);
+
+  if(cur.type === "lesson"){
+    statusText.textContent = `Қазір: ${cur.idx}-сабақ — ${cur.name}`;
+    subText.textContent = today.title;
+
+    const wk = `L5_${today.key}_${cur.idx}_${today.dateISO}`;
+    if(leftMin === ALERT_BEFORE_MIN && lastKeyWarn !== wk){
+      notify("5 минутта", `Аяқталады ${cur.idx}-сабақ: ${cur.name}`);
+      lastKeyWarn = wk;
+    }
+
+    const ek = `Lend_${today.key}_${cur.idx}_${today.dateISO}`;
+    if(left <= 1 && lastKeyEnd !== ek){
+      notify("Сабақ аяқталды", `${cur.idx}-сабақ: ${cur.name}`);
+      lastKeyEnd = ek;
+    }
+    return;
+  }
+
+  if(cur.type === "break"){
+    const isBig = cur.after === BREAK_AFTER_LESSON;
+    statusText.textContent = isBig
+      ? `Үлкен үзіліс (${BIG_BREAK_MIN} мин) ${BREAK_AFTER_LESSON}-сабақтан кейін`
+      : `Үзіліс ${cur.after}-сабақтан кейін`;
+    subText.textContent = today.title;
+
+    const wk = isBig ? `B5_${today.key}_${today.dateISO}` : `b5_${today.key}_${cur.after}_${today.dateISO}`;
+    if(leftMin === ALERT_BEFORE_MIN && lastKeyWarn !== wk){
+      notify("5 минутта", isBig ? "Үлкен үзіліс аяқталады" : "Келесі сабақ басталады");
+      lastKeyWarn = wk;
+    }
+
+    const ek = isBig ? `Bend_${today.key}_${today.dateISO}` : `bend_${today.key}_${cur.after}_${today.dateISO}`;
+    if(left <= 1 && lastKeyEnd !== ek){
+      notify("Үзіліс аяқталды", "Келесі сабақ басталады");
+      lastKeyEnd = ek;
+    }
+  }
+}
+
+/* ===================== INIT ===================== */
+DAYS = buildWeekWithDates(new Date());
+renderDayButtons();
+
+// по умолчанию выберем сегодня, если есть, иначе понедельник
+const today = getTodayDay();
+if(today) selectDay(today.key);
+else selectDay("mon");
+
+tick();
+setInterval(tick, 1000);
+</script>
+
+</body>
+</html>
